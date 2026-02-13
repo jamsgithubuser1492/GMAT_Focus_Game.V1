@@ -1,0 +1,33 @@
+{
+  "name": "gmat-focus-adaptive-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gamified adaptive learning platform for GMAT Focus Edition targeting 705+ scores",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint 'src/**/*.{ts,tsx}' 'tests/**/*.ts' --max-warnings=0",
+    "lint:fix": "eslint 'src/**/*.{ts,tsx}' 'tests/**/*.ts' --fix",
+    "format": "prettier --write 'src/**/*.{ts,tsx,json}' 'tests/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.{ts,tsx,json}' 'tests/**/*.ts'",
+    "test": "vitest run --reporter=verbose",
+    "test:watch": "vitest --reporter=verbose",
+    "test:coverage": "vitest run --coverage",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
