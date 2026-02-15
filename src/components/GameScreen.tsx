@@ -1,11 +1,13 @@
 "use client";
 
 import { useExamSessionStore } from "@/stores/exam-session-store";
+import { useGameLoop } from "@/hooks/useGameLoop";
 import type { GmatSection } from "@/lib/tutor-engine/types";
 import Timer from "@/components/Timer";
 import QuestionCard from "@/components/QuestionCard";
 import ScoreDisplay from "@/components/ScoreDisplay";
 import SessionLauncher from "@/components/SessionLauncher";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const SECTION_LABELS: Record<GmatSection, string> = {
   quantitative: "Quantitative Reasoning",
@@ -53,14 +55,12 @@ function ActiveGameLayout() {
   const attempts = useExamSessionStore((s) => s.attempts);
   const editsUsed = useExamSessionStore((s) => s.editsUsed);
 
+  const { error, sectionQuestionCount, sectionTotal } = useGameLoop();
+
   const currentSection = sections[currentSectionIndex];
   if (!currentSection) return null;
 
   const sectionLabel = SECTION_LABELS[currentSection.section];
-  const sectionAttempts = attempts.filter(
-    (a) => a.section === currentSection.section,
-  );
-  const answeredCount = sectionAttempts.length;
   const editsRemaining = currentSection.editsAllowed - editsUsed;
 
   return (
@@ -77,7 +77,7 @@ function ActiveGameLayout() {
               {sectionLabel}
             </span>
             <span className="text-xs text-gray-500">
-              {answeredCount} / {currentSection.questionsCount} answered
+              {sectionQuestionCount} / {sectionTotal} answered
               {sections.length > 1 && (
                 <span className="ml-2">
                   &middot; Section {currentSectionIndex + 1} of{" "}
@@ -106,6 +106,15 @@ function ActiveGameLayout() {
         </div>
       </header>
 
+      {/* Game Loop Error */}
+      {error && (
+        <div className="mx-auto mt-4 max-w-3xl px-4 sm:px-6">
+          <div className="rounded-xl border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="flex-1 px-4 py-6 sm:px-6">
         <div className="mx-auto max-w-3xl">
@@ -127,16 +136,16 @@ export default function GameScreen() {
   const sessionId = useExamSessionStore((s) => s.sessionId);
   const isComplete = useExamSessionStore((s) => s.isComplete);
 
-  // No session: show launcher
-  if (!sessionId) {
-    return <SessionLauncher />;
-  }
+  return (
+    <ErrorBoundary>
+      {/* No session: show launcher */}
+      {!sessionId && <SessionLauncher />}
 
-  // Session complete: show final score
-  if (isComplete) {
-    return <FinalScoreScreen />;
-  }
+      {/* Session complete: show final score */}
+      {sessionId && isComplete && <FinalScoreScreen />}
 
-  // Active session: show game layout
-  return <ActiveGameLayout />;
+      {/* Active session: show game layout */}
+      {sessionId && !isComplete && <ActiveGameLayout />}
+    </ErrorBoundary>
+  );
 }
