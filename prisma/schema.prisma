@@ -1,0 +1,211 @@
+// GMAT Focus Edition Adaptive Learning Platform — Prisma Schema
+//
+// Maps directly from PROJECT_MEMORY.md Section 5 (Database Schema Design).
+// 8 tables: users, skill_nodes, questions, learner_profiles,
+//           question_attempts, exam_sessions, gamification, skill_node_questions
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum GmatSection {
+  quantitative
+  verbal
+  data_insights
+}
+
+enum QuestionType {
+  problem_solving
+  reading_comprehension
+  critical_reasoning
+  data_sufficiency
+  multi_source_reasoning
+  table_analysis
+  graphics_interpretation
+  two_part_analysis
+}
+
+enum SessionType {
+  drill
+  section_practice
+  full_exam
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  email       String   @unique @db.VarChar(255)
+  displayName String   @map("display_name") @db.VarChar(100)
+  targetScore Int      @default(705) @map("target_score")
+  testDate    DateTime? @map("test_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  learnerProfiles  LearnerProfile[]
+  questionAttempts QuestionAttempt[]
+  examSessions     ExamSession[]
+  gamification     Gamification?
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Skill Nodes (Expert Model — knowledge graph)
+// ---------------------------------------------------------------------------
+
+model SkillNode {
+  id          String      @id @default(uuid()) @db.Uuid
+  section     GmatSection
+  name        String      @db.VarChar(255)
+  description String      @db.Text
+  tier        Int         // 1=foundational, 2=intermediate, 3=advanced, 4=elite(700+)
+  parentIds   String[]    @map("parent_ids") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+
+  learnerProfiles    LearnerProfile[]
+  skillNodeQuestions SkillNodeQuestion[]
+
+  @@map("skill_nodes")
+}
+
+// ---------------------------------------------------------------------------
+// Questions (Item Bank)
+// ---------------------------------------------------------------------------
+
+model Question {
+  id              String       @id @default(uuid()) @db.Uuid
+  section         GmatSection
+  questionType    QuestionType @map("question_type")
+  difficultyB     Float        @map("difficulty_b")   // IRT b ∈ [-3, 3]
+  discriminationA Float        @map("discrimination_a") // IRT a > 0
+  guessingC       Float        @default(0.2) @map("guessing_c") // 5-choice = 0.2
+  content         Json         // question text, passages, options, graphics metadata
+  correctAnswer   String       @map("correct_answer") @db.VarChar(10)
+  explanation     String       @db.Text
+  estimatedTime   Int          @map("estimated_time") // seconds
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+
+  questionAttempts   QuestionAttempt[]
+  skillNodeQuestions SkillNodeQuestion[]
+
+  @@map("questions")
+}
+
+// ---------------------------------------------------------------------------
+// Skill Node ↔ Question (many-to-many join table)
+// ---------------------------------------------------------------------------
+
+model SkillNodeQuestion {
+  skillNodeId String   @map("skill_node_id") @db.Uuid
+  questionId  String   @map("question_id") @db.Uuid
+
+  skillNode   SkillNode @relation(fields: [skillNodeId], references: [id], onDelete: Cascade)
+  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([skillNodeId, questionId])
+  @@map("skill_node_questions")
+}
+
+// ---------------------------------------------------------------------------
+// Learner Profiles (Learner Model — per skill node per user)
+// ---------------------------------------------------------------------------
+
+model LearnerProfile {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  skillNodeId   String    @map("skill_node_id") @db.Uuid
+  theta         Float     @default(0.0)        // proficiency θ ∈ [-3, 3]
+  attempts      Int       @default(0)
+  correct       Int       @default(0)
+  lastPracticed DateTime? @map("last_practiced") @db.Timestamptz()
+  decayFactor   Float     @default(1.0) @map("decay_factor") // 1.0 = full mastery
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillNode SkillNode @relation(fields: [skillNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillNodeId])
+  @@map("learner_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Question Attempts
+// ---------------------------------------------------------------------------
+
+model QuestionAttempt {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  questionId     String   @map("question_id") @db.Uuid
+  sessionId      String   @map("session_id") @db.Uuid
+  selectedAnswer String   @map("selected_answer") @db.VarChar(10)
+  isCorrect      Boolean  @map("is_correct")
+  timeSpent      Int      @map("time_spent") // seconds
+  wasBookmarked  Boolean  @default(false) @map("was_bookmarked")
+  wasEdited      Boolean  @default(false) @map("was_edited")
+  thetaBefore    Float    @map("theta_before")
+  thetaAfter     Float    @map("theta_after")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question    Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  examSession ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([questionId])
+  @@map("question_attempts")
+}
+
+// ---------------------------------------------------------------------------
+// Exam Sessions
+// ---------------------------------------------------------------------------
+
+model ExamSession {
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @map("user_id") @db.Uuid
+  sessionType  SessionType @map("session_type")
+  sectionOrder String?     @map("section_order") @db.VarChar(100) // e.g., "quant,verbal,di"
+  startedAt    DateTime    @default(now()) @map("started_at") @db.Timestamptz()
+  completedAt  DateTime?   @map("completed_at") @db.Timestamptz()
+  totalScore   Int?        @map("total_score")  // 205-805, ends in 5
+  quantScore   Int?        @map("quant_score")  // 60-90
+  verbalScore  Int?        @map("verbal_score") // 60-90
+  diScore      Int?        @map("di_score")     // 60-90
+  editsUsed    Json?       @map("edits_used")   // {quant: 2, verbal: 1, di: 3}
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionAttempts QuestionAttempt[]
+
+  @@index([userId])
+  @@map("exam_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Gamification
+// ---------------------------------------------------------------------------
+
+model Gamification {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @map("user_id") @db.Uuid
+  xpTotal        Int      @default(0) @map("xp_total")
+  level          Int      @default(1)
+  streakDays     Int      @default(0) @map("streak_days")
+  streakLastDate DateTime? @map("streak_last_date") @db.Date
+  vaultUnlocked  Boolean  @default(false) @map("vault_unlocked") // 700+ vault
+  badges         Json     @default("[]")
+  bookmarkXp     Int      @default(0) @map("bookmark_xp")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("gamification")
+}
