@@ -144,6 +144,7 @@ export function selectNextQuestion(ctx: QuestionSelectionContext): Question | nu
     candidateQuestions,
     learnerProfiles,
     currentSectionTheta,
+    targetScore,
     answeredQuestionIds,
     now = new Date(),
   } = ctx;
@@ -154,9 +155,15 @@ export function selectNextQuestion(ctx: QuestionSelectionContext): Question | nu
     return null;
   }
 
+  // Blend current theta with target theta when a target score is set.
+  // This biases question selection toward the user's goal difficulty.
+  const effectiveTheta = targetScore
+    ? 0.7 * currentSectionTheta + 0.3 * getTargetTheta(targetScore)
+    : currentSectionTheta;
+
   // 2. Score each question: information + decay boost
   const scored = eligible.map((question) => {
-    const informationScore = itemInformation(currentSectionTheta, {
+    const informationScore = itemInformation(effectiveTheta, {
       a: question.discrimination,
       b: question.difficulty,
       c: question.guessing,
