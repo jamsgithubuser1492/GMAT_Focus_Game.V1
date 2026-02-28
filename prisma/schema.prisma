@@ -45,7 +45,7 @@ enum SessionType {
 // ---------------------------------------------------------------------------
 
 model User {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(cuid())
   email       String   @unique @db.VarChar(255)
   displayName String   @map("display_name") @db.VarChar(100)
   targetScore Int      @default(705) @map("target_score")
@@ -65,12 +65,12 @@ model User {
 // ---------------------------------------------------------------------------
 
 model SkillNode {
-  id          String      @id @default(uuid()) @db.Uuid
+  id          String      @id
   section     GmatSection
   name        String      @db.VarChar(255)
   description String      @db.Text
   tier        Int         // 1=foundational, 2=intermediate, 3=advanced, 4=elite(700+)
-  parentIds   String[]    @map("parent_ids") @db.Uuid
+  parentIds   String[]    @map("parent_ids")
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz()
 
   learnerProfiles    LearnerProfile[]
@@ -84,7 +84,7 @@ model SkillNode {
 // ---------------------------------------------------------------------------
 
 model Question {
-  id              String       @id @default(uuid()) @db.Uuid
+  id              String       @id
   section         GmatSection
   questionType    QuestionType @map("question_type")
   difficultyB     Float        @map("difficulty_b")   // IRT b ∈ [-3, 3]
@@ -107,8 +107,8 @@ model Question {
 // ---------------------------------------------------------------------------
 
 model SkillNodeQuestion {
-  skillNodeId String   @map("skill_node_id") @db.Uuid
-  questionId  String   @map("question_id") @db.Uuid
+  skillNodeId String   @map("skill_node_id")
+  questionId  String   @map("question_id")
 
   skillNode   SkillNode @relation(fields: [skillNodeId], references: [id], onDelete: Cascade)
   question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -122,9 +122,9 @@ model SkillNodeQuestion {
 // ---------------------------------------------------------------------------
 
 model LearnerProfile {
-  id            String    @id @default(uuid()) @db.Uuid
-  userId        String    @map("user_id") @db.Uuid
-  skillNodeId   String    @map("skill_node_id") @db.Uuid
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  skillNodeId   String    @map("skill_node_id")
   theta         Float     @default(0.0)        // proficiency θ ∈ [-3, 3]
   attempts      Int       @default(0)
   correct       Int       @default(0)
@@ -143,10 +143,10 @@ model LearnerProfile {
 // ---------------------------------------------------------------------------
 
 model QuestionAttempt {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  questionId     String   @map("question_id") @db.Uuid
-  sessionId      String   @map("session_id") @db.Uuid
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  questionId     String   @map("question_id")
+  sessionId      String   @map("session_id")
   selectedAnswer String   @map("selected_answer") @db.VarChar(10)
   isCorrect      Boolean  @map("is_correct")
   timeSpent      Int      @map("time_spent") // seconds
@@ -171,8 +171,8 @@ model QuestionAttempt {
 // ---------------------------------------------------------------------------
 
 model ExamSession {
-  id           String      @id @default(uuid()) @db.Uuid
-  userId       String      @map("user_id") @db.Uuid
+  id           String      @id @default(cuid())
+  userId       String      @map("user_id")
   sessionType  SessionType @map("session_type")
   sectionOrder String?     @map("section_order") @db.VarChar(100) // e.g., "quant,verbal,di"
   startedAt    DateTime    @default(now()) @map("started_at") @db.Timestamptz()
@@ -195,8 +195,8 @@ model ExamSession {
 // ---------------------------------------------------------------------------
 
 model Gamification {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @unique @map("user_id") @db.Uuid
+  id             String   @id @default(cuid())
+  userId         String   @unique @map("user_id")
   xpTotal        Int      @default(0) @map("xp_total")
   level          Int      @default(1)
   streakDays     Int      @default(0) @map("streak_days")

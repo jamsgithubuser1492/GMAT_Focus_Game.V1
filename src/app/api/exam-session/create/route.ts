@@ -16,6 +16,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { computeStreak } from "@/lib/gamification";
 import { GMAT_FOCUS } from "@/lib/tutor-engine/types";
 import type { GmatSection } from "@/lib/tutor-engine/types";
 
@@ -104,14 +106,53 @@ export async function POST(request: NextRequest) {
     ];
   }
 
-  const sessionId = crypto.randomUUID();
+  // Persist session to database (gracefully degrade if DB unavailable)
+  let sessionId: string;
+  let startedAt: string;
+
+  try {
+    const examSession = await prisma.examSession.create({
+      data: {
+        userId,
+        sessionType,
+        sectionOrder: sectionOrder ?? sections.map((s) => s.section).join(","),
+      },
+    });
+    sessionId = examSession.id;
+    startedAt = examSession.startedAt.toISOString();
+
+    // Update streak on session start
+    try {
+      const gamification = await prisma.gamification.findUnique({
+        where: { userId },
+      });
+
+      if (gamification) {
+        const { streakDays, streakLastDate } = computeStreak(
+          gamification.streakDays,
+          gamification.streakLastDate,
+        );
+
+        await prisma.gamification.update({
+          where: { userId },
+          data: { streakDays, streakLastDate },
+        });
+      }
+    } catch {
+      // Non-critical: don't fail session creation if streak update fails
+    }
+  } catch {
+    // Fallback: generate session locally if DB is unavailable
+    sessionId = crypto.randomUUID();
+    startedAt = new Date().toISOString();
+  }
 
   return NextResponse.json(
     {
       sessionId,
       userId,
       sessionType,
-      startedAt: new Date().toISOString(),
+      startedAt,
       sectionsConfig: sections,
     },
     { status: 201 },

@@ -58,11 +58,32 @@ export default function SessionLauncher() {
     setError(null);
 
     try {
+      // Ensure user exists in the database
+      let userId = localStorage.getItem("gmat_user_id");
+      if (!userId) {
+        const userRes = await fetch("/api/user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: `player-${crypto.randomUUID().slice(0, 8)}@gmat-focus.local`,
+            displayName: "GMAT Player",
+          }),
+        });
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          userId = userData.id;
+          localStorage.setItem("gmat_user_id", userId!);
+        } else {
+          // Fallback to local-only mode if DB is unavailable
+          userId = "local-player";
+        }
+      }
+
       const res = await fetch("/api/exam-session/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: "local-player",
+          userId,
           sessionType: selectedMode,
           ...(needsSection ? { section: selectedSection } : {}),
         }),
@@ -194,10 +215,18 @@ export default function SessionLauncher() {
           )}
         </button>
 
-        {/* Footer hint */}
-        <p className="mt-6 text-center text-xs text-gray-600">
-          Questions adapt in real-time to your ability level using IRT 3PL
-        </p>
+        {/* Dashboard link */}
+        <div className="mt-6 text-center">
+          <a
+            href="/dashboard"
+            className="text-xs text-indigo-400 underline hover:text-indigo-300"
+          >
+            View Dashboard &rarr;
+          </a>
+          <p className="mt-2 text-xs text-gray-600">
+            Questions adapt in real-time to your ability level using IRT 3PL
+          </p>
+        </div>
       </div>
     </div>
   );
