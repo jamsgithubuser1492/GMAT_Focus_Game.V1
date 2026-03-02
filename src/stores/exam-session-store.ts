@@ -181,7 +181,7 @@ export const useExamSessionStore = create<ExamSessionState & ExamSessionActions>
     // -----------------------------------------------------------------------
     submitAnswer: (correctAnswer, item) => {
       const state = get();
-      const { selectedAnswer, currentQuestion, questionStartTime, sectionThetas, attempts } = state;
+      const { selectedAnswer, currentQuestion, questionStartTime, sectionThetas, attempts, userId, sessionId } = state;
 
       if (!selectedAnswer || !currentQuestion) return;
 
@@ -219,6 +219,25 @@ export const useExamSessionStore = create<ExamSessionState & ExamSessionActions>
         isTimerRunning: false,
         showExplanation: true,
       });
+
+      // Persist attempt to database (fire-and-forget, non-blocking)
+      if (userId && userId !== "local-player" && sessionId) {
+        fetch("/api/tutor-engine/submit-answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentTheta: theta,
+            selectedAnswer,
+            correctAnswer,
+            item,
+            userId,
+            questionId: currentQuestion.id,
+            sessionId,
+            timeSpent: Math.round(timeSpent / 1000),
+            skillNodeIds: currentQuestion.skillNodeIds,
+          }),
+        }).catch(() => { /* non-critical */ });
+      }
     },
 
     // -----------------------------------------------------------------------

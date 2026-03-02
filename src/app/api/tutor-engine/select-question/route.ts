@@ -9,6 +9,7 @@
  *   - learnerProfiles: Record<string, LearnerProfile>
  *   - currentSectionTheta: number
  *   - answeredQuestionIds?: string[]
+ *   - targetScore?: number
  *
  * Response:
  *   - 200: { question: Question }
@@ -25,6 +26,7 @@ interface SelectQuestionBody {
   learnerProfiles: Record<string, LearnerProfile>;
   currentSectionTheta: number;
   answeredQuestionIds?: string[];
+  targetScore?: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { candidateQuestions, learnerProfiles, currentSectionTheta, answeredQuestionIds } = body;
+  const { candidateQuestions, learnerProfiles, currentSectionTheta, answeredQuestionIds, targetScore } = body;
 
   if (!Array.isArray(candidateQuestions) || typeof currentSectionTheta !== "number") {
     return NextResponse.json(
@@ -58,6 +60,7 @@ export async function POST(request: NextRequest) {
     candidateQuestions,
     learnerProfiles: profileMap,
     currentSectionTheta,
+    targetScore,
     answeredQuestionIds: answeredSet,
   });
 

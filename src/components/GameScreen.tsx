@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useExamSessionStore } from "@/stores/exam-session-store";
 import { useGameLoop } from "@/hooks/useGameLoop";
 import type { GmatSection } from "@/lib/tutor-engine/types";
@@ -17,6 +18,48 @@ const SECTION_LABELS: Record<GmatSection, string> = {
 
 function FinalScoreScreen() {
   const reset = useExamSessionStore((s) => s.reset);
+  const sessionId = useExamSessionStore((s) => s.sessionId);
+  const userId = useExamSessionStore((s) => s.userId);
+  const sectionThetas = useExamSessionStore((s) => s.sectionThetas);
+  const sessionType = useExamSessionStore((s) => s.sessionType);
+
+  const [xpAwarded, setXpAwarded] = useState<number | null>(null);
+  const [newBadges, setNewBadges] = useState<{ name: string }[]>([]);
+
+  // Persist session completion
+  useEffect(() => {
+    if (!sessionId || !userId) return;
+
+    const thetaToScore = (theta: number) =>
+      Math.round(Math.max(60, Math.min(90, 75 + theta * 5)));
+
+    const quantScore = thetaToScore(sectionThetas.quantitative);
+    const verbalScore = thetaToScore(sectionThetas.verbal);
+    const diScore = thetaToScore(sectionThetas.data_insights);
+    const sectionSum = quantScore + verbalScore + diScore;
+    const totalScore = Math.round(Math.max(205, Math.min(805, 205 + ((sectionSum - 180) * 600) / 90)) / 5) * 5;
+
+    fetch("/api/exam-session/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        userId,
+        totalScore,
+        quantScore,
+        verbalScore,
+        diScore,
+      }),
+    })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data) {
+          setXpAwarded(data.xpAwarded ?? 0);
+          setNewBadges(data.newBadges ?? []);
+        }
+      })
+      .catch(() => { /* non-critical */ });
+  }, [sessionId, userId, sectionThetas, sessionType]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-16">
@@ -32,6 +75,18 @@ function FinalScoreScreen() {
           </p>
         </div>
 
+        {/* XP Awarded */}
+        {xpAwarded !== null && xpAwarded > 0 && (
+          <div className="mb-4 rounded-xl border border-indigo-500/30 bg-indigo-950/30 px-4 py-3 text-center">
+            <p className="text-lg font-bold text-indigo-300">+{xpAwarded} XP</p>
+            {newBadges.length > 0 && (
+              <p className="mt-1 text-sm text-amber-400">
+                New badge{newBadges.length > 1 ? "s" : ""}: {newBadges.map((b) => b.name).join(", ")}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Full score display */}
         <ScoreDisplay compact={false} />
 
@@ -43,6 +98,12 @@ function FinalScoreScreen() {
           >
             New Session
           </button>
+          <a
+            href="/dashboard"
+            className="flex-1 rounded-xl bg-indigo-600 px-6 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-indigo-500"
+          >
+            View Dashboard
+          </a>
         </div>
       </div>
     </div>
