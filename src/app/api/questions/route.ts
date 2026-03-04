@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   });
 
   // Transform DB shape → engine Question shape
-  const questions = dbQuestions.map((q) => ({
+  const questions = dbQuestions.map((q: typeof dbQuestions[number]) => ({
     id: q.id,
     section: q.section as GmatSection,
     questionType: q.questionType,

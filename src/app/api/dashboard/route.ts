@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Score history for chart
-  const scoreHistory = sessions.map((s) => ({
+  const scoreHistory = sessions.map((s: typeof sessions[number]) => ({
     date: s.completedAt?.toISOString(),
     sessionType: s.sessionType,
     totalScore: s.totalScore,
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
   }));
 
   // Skill breakdown
-  const skills = learnerProfiles.map((lp) => ({
+  const skills = learnerProfiles.map((lp: typeof learnerProfiles[number]) => ({
     skillNodeId: lp.skillNodeId,
     name: lp.skillNode.name,
     section: lp.skillNode.section,
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
       overallAccuracy: totalAttempts > 0 ? correctAttempts / totalAttempts : 0,
       latestScore: sessions.length > 0 ? sessions[sessions.length - 1]!.totalScore : null,
     },
-    recentActivity: recentAttempts.map((a) => ({
+    recentActivity: recentAttempts.map((a: typeof recentAttempts[number]) => ({
       id: a.id,
       isCorrect: a.isCorrect,
       section: a.question.section,
