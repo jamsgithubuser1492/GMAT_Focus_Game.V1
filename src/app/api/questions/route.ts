@@ -29,29 +29,34 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const dbQuestions = await prisma.question.findMany({
-    where: { section: section as GmatSection },
-    include: {
-      skillNodeQuestions: {
-        select: { skillNodeId: true },
+  try {
+    const dbQuestions = await prisma.question.findMany({
+      where: { section: section as GmatSection },
+      include: {
+        skillNodeQuestions: {
+          select: { skillNodeId: true },
+        },
       },
-    },
-  });
+    });
 
-  // Transform DB shape → engine Question shape
-  const questions = dbQuestions.map((q: typeof dbQuestions[number]) => ({
-    id: q.id,
-    section: q.section as GmatSection,
-    questionType: q.questionType,
-    skillNodeIds: q.skillNodeQuestions.map((snq: { skillNodeId: string }) => snq.skillNodeId),
-    difficulty: q.difficultyB,
-    discrimination: q.discriminationA,
-    guessing: q.guessingC,
-    content: typeof q.content === "string" ? q.content : JSON.stringify(q.content),
-    correctAnswer: q.correctAnswer,
-    explanation: q.explanation,
-    estimatedTimeSeconds: q.estimatedTime,
-  }));
+    // Transform DB shape → engine Question shape
+    const questions = dbQuestions.map((q: typeof dbQuestions[number]) => ({
+      id: q.id,
+      section: q.section as GmatSection,
+      questionType: q.questionType,
+      skillNodeIds: q.skillNodeQuestions.map((snq: { skillNodeId: string }) => snq.skillNodeId),
+      difficulty: q.difficultyB,
+      discrimination: q.discriminationA,
+      guessing: q.guessingC,
+      content: typeof q.content === "string" ? q.content : JSON.stringify(q.content),
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      estimatedTimeSeconds: q.estimatedTime,
+    }));
 
-  return NextResponse.json({ questions });
+    return NextResponse.json({ questions });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Database error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

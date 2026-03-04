@@ -32,48 +32,53 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Upsert: return existing user or create new
-  const user = await prisma.user.upsert({
-    where: { email },
-    update: {},
-    create: {
-      email,
-      displayName,
-      targetScore: targetScore ?? 705,
-      testDate: testDate ? new Date(testDate) : null,
-    },
-    include: { gamification: true },
-  });
-
-  // Create gamification row if it doesn't exist
-  if (!user.gamification) {
-    await prisma.gamification.create({
-      data: { userId: user.id },
+  try {
+    // Upsert: return existing user or create new
+    const user = await prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: {
+        email,
+        displayName,
+        targetScore: targetScore ?? 705,
+        testDate: testDate ? new Date(testDate) : null,
+      },
+      include: { gamification: true },
     });
-  }
 
-  // Create learner profiles for all skill nodes if they don't exist
-  const existingProfiles = await prisma.learnerProfile.count({
-    where: { userId: user.id },
-  });
+    // Create gamification row if it doesn't exist
+    if (!user.gamification) {
+      await prisma.gamification.create({
+        data: { userId: user.id },
+      });
+    }
 
-  if (existingProfiles === 0) {
-    const skillNodes = await prisma.skillNode.findMany({ select: { id: true } });
-    await prisma.learnerProfile.createMany({
-      data: skillNodes.map((sn: { id: string }) => ({
-        userId: user.id,
-        skillNodeId: sn.id,
-      })),
-      skipDuplicates: true,
+    // Create learner profiles for all skill nodes if they don't exist
+    const existingProfiles = await prisma.learnerProfile.count({
+      where: { userId: user.id },
     });
+
+    if (existingProfiles === 0) {
+      const skillNodes = await prisma.skillNode.findMany({ select: { id: true } });
+      await prisma.learnerProfile.createMany({
+        data: skillNodes.map((sn: { id: string }) => ({
+          userId: user.id,
+          skillNodeId: sn.id,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { gamification: true },
+    });
+
+    return NextResponse.json(fullUser, { status: 201 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Database error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const fullUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: { gamification: true },
-  });
-
-  return NextResponse.json(fullUser, { status: 201 });
 }
 
 export async function GET(request: NextRequest) {
@@ -82,14 +87,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing query param: userId" }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { gamification: true },
-  });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { gamification: true },
+    });
 
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(user);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Database error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  return NextResponse.json(user);
 }

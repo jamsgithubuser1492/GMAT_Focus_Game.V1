@@ -94,8 +94,14 @@ export default function SessionLauncher({ onBack }: SessionLauncherProps) {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Failed to create session");
+        let errorMessage = "Failed to create session";
+        try {
+          const data = await res.json();
+          errorMessage = data.error ?? errorMessage;
+        } catch {
+          // Response body isn't valid JSON (e.g. 500 with empty body)
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await res.json();
