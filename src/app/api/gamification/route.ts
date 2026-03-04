@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   // Enrich badge data with full definitions
   const earnedBadgeIds = (gam.badges as { id: string; earnedAt?: string }[]);
-  const badges = earnedBadgeIds.map((earned) => {
+  const badges = earnedBadgeIds.map((earned: { id: string; earnedAt?: string }) => {
     const def = BADGE_DEFINITIONS.find((b) => b.id === earned.id);
     return {
       ...def,

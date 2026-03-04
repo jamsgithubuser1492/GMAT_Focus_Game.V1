@@ -74,10 +74,10 @@ export async function POST(request: NextRequest) {
 
   if (sessionType === "full_exam") {
     const order = sectionOrder
-      ? sectionOrder.split(",").map((s) => s.trim())
+      ? sectionOrder.split(",").map((s: string) => s.trim())
       : [...GMAT_FOCUS.SECTIONS];
 
-    sections = order.map((s) => {
+    sections = order.map((s: string) => {
       const sec = s as GmatSection;
       return {
         section: sec,
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId,
         sessionType,
-        sectionOrder: sectionOrder ?? sections.map((s) => s.section).join(","),
+        sectionOrder: sectionOrder ?? sections.map((s: SectionConfig) => s.section).join(","),
       },
     });
     sessionId = examSession.id;
