@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     id: q.id,
     section: q.section as GmatSection,
     questionType: q.questionType,
-    skillNodeIds: q.skillNodeQuestions.map((snq) => snq.skillNodeId),
+    skillNodeIds: q.skillNodeQuestions.map((snq: { skillNodeId: string }) => snq.skillNodeId),
     difficulty: q.difficultyB,
     discrimination: q.discriminationA,
     guessing: q.guessingC,
