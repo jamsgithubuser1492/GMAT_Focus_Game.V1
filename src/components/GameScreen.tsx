@@ -8,6 +8,7 @@ import Timer from "@/components/Timer";
 import QuestionCard from "@/components/QuestionCard";
 import ScoreDisplay from "@/components/ScoreDisplay";
 import SessionLauncher from "@/components/SessionLauncher";
+import LandingPage from "@/components/LandingPage";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 const SECTION_LABELS: Record<GmatSection, string> = {
@@ -196,11 +197,19 @@ function ActiveGameLayout() {
 export default function GameScreen() {
   const sessionId = useExamSessionStore((s) => s.sessionId);
   const isComplete = useExamSessionStore((s) => s.isComplete);
+  const [showLauncher, setShowLauncher] = useState(false);
 
   return (
     <ErrorBoundary>
-      {/* No session: show launcher */}
-      {!sessionId && <SessionLauncher />}
+      {/* No session, no launcher: show landing page */}
+      {!sessionId && !showLauncher && (
+        <LandingPage onStart={() => setShowLauncher(true)} />
+      )}
+
+      {/* No session, launcher active: show session config */}
+      {!sessionId && showLauncher && (
+        <SessionLauncher onBack={() => setShowLauncher(false)} />
+      )}
 
       {/* Session complete: show final score */}
       {sessionId && isComplete && <FinalScoreScreen />}

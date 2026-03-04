@@ -42,7 +42,11 @@ const SECTION_OPTIONS: { value: GmatSection; label: string }[] = [
   { value: "data_insights", label: "Data Insights" },
 ];
 
-export default function SessionLauncher() {
+interface SessionLauncherProps {
+  onBack?: () => void;
+}
+
+export default function SessionLauncher({ onBack }: SessionLauncherProps) {
   const [selectedMode, setSelectedMode] = useState<SessionMode>("drill");
   const [selectedSection, setSelectedSection] =
     useState<GmatSection>("quantitative");
@@ -112,13 +116,23 @@ export default function SessionLauncher() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-16">
       <div className="w-full max-w-2xl">
+        {/* Back button */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-6 inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 transition-colors hover:text-gray-200"
+          >
+            &larr; Back
+          </button>
+        )}
+
         {/* Header */}
         <div className="mb-10 text-center">
           <h1 className="text-3xl font-extrabold tracking-tight text-gray-100 sm:text-4xl">
-            GMAT Focus Command Center
+            Configure Session
           </h1>
           <p className="mt-3 text-sm text-gray-400">
-            Adaptive learning engine targeting 705+ (98.6th percentile)
+            Choose your practice mode and section
           </p>
         </div>
 
