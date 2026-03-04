@@ -177,14 +177,22 @@ export function useGameLoop() {
       }
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(
-          (body as { error?: string }).error ??
-            `Selection API returned ${res.status}`,
-        );
+        let errorMsg = `Selection API returned ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body?.error) errorMsg = body.error;
+        } catch {
+          // non-JSON response
+        }
+        throw new Error(errorMsg);
       }
 
-      const data: { question: Question } = await res.json();
+      let data: { question: Question };
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Invalid response from question selection API");
+      }
       setCurrentQuestion(data.question);
     } catch (err) {
       const message =

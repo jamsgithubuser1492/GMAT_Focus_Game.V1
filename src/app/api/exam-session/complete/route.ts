@@ -51,86 +51,91 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Update session with final scores
-  const session = await prisma.examSession.update({
-    where: { id: sessionId },
-    data: {
-      completedAt: new Date(),
-      totalScore,
-      quantScore: quantScore ?? null,
-      verbalScore: verbalScore ?? null,
-      diScore: diScore ?? null,
-    },
-  });
+  try {
+    // Update session with final scores
+    const session = await prisma.examSession.update({
+      where: { id: sessionId },
+      data: {
+        completedAt: new Date(),
+        totalScore,
+        quantScore: quantScore ?? null,
+        verbalScore: verbalScore ?? null,
+        diScore: diScore ?? null,
+      },
+    });
 
-  // Count attempts in this session
-  const totalQuestions = await prisma.questionAttempt.count({
-    where: { sessionId },
-  });
-  const correctCount = await prisma.questionAttempt.count({
-    where: { sessionId, isCorrect: true },
-  });
+    // Count attempts in this session
+    const totalQuestions = await prisma.questionAttempt.count({
+      where: { sessionId },
+    });
+    const correctCount = await prisma.questionAttempt.count({
+      where: { sessionId, isCorrect: true },
+    });
 
-  // Get total questions answered by user ever
-  const totalUserQuestions = await prisma.questionAttempt.count({
-    where: { userId },
-  });
+    // Get total questions answered by user ever
+    const totalUserQuestions = await prisma.questionAttempt.count({
+      where: { userId },
+    });
 
-  // Count completed sessions
-  const completedSessions = await prisma.examSession.count({
-    where: { userId, completedAt: { not: null } },
-  });
+    // Count completed sessions
+    const completedSessions = await prisma.examSession.count({
+      where: { userId, completedAt: { not: null } },
+    });
 
-  // Get current gamification state
-  const gam = await prisma.gamification.findUnique({ where: { userId } });
-  if (!gam) {
-    return NextResponse.json({ error: "User gamification not found" }, { status: 404 });
-  }
+    // Get current gamification state
+    const gam = await prisma.gamification.findUnique({ where: { userId } });
+    if (!gam) {
+      return NextResponse.json({ error: "User gamification not found" }, { status: 404 });
+    }
 
-  // Calculate session XP
-  const sessionXP = calculateSessionXP(
-    session.sessionType as "drill" | "section_practice" | "full_exam",
-    correctCount,
-    totalQuestions,
-    gam.streakDays,
-  );
+    // Calculate session XP
+    const sessionXP = calculateSessionXP(
+      session.sessionType as "drill" | "section_practice" | "full_exam",
+      correctCount,
+      totalQuestions,
+      gam.streakDays,
+    );
 
-  const newXPTotal = gam.xpTotal + sessionXP;
-  const newLevel = getLevel(newXPTotal);
+    const newXPTotal = gam.xpTotal + sessionXP;
+    const newLevel = getLevel(newXPTotal);
 
-  // Check for new badges
-  const existingBadgeIds = (gam.badges as { id: string }[]).map((b: { id: string }) => b.id);
-  const newBadges = checkNewBadges(existingBadgeIds, {
-    sessionsCompleted: completedSessions,
-    streakDays: gam.streakDays,
-    totalQuestions: totalUserQuestions,
-    sessionAccuracy: totalQuestions > 0 ? correctCount / totalQuestions : 0,
-    sessionQuestionCount: totalQuestions,
-    projectedScore: totalScore,
-    level: newLevel,
-    sessionType: session.sessionType,
-  });
-
-  // Update gamification
-  const allBadges = [
-    ...(gam.badges as { id: string; name: string }[]),
-    ...newBadges.map((b: Badge) => ({ id: b.id, name: b.name, earnedAt: new Date().toISOString() })),
-  ];
-
-  const updatedGam = await prisma.gamification.update({
-    where: { userId },
-    data: {
-      xpTotal: newXPTotal,
+    // Check for new badges
+    const existingBadgeIds = (gam.badges as { id: string }[]).map((b: { id: string }) => b.id);
+    const newBadges = checkNewBadges(existingBadgeIds, {
+      sessionsCompleted: completedSessions,
+      streakDays: gam.streakDays,
+      totalQuestions: totalUserQuestions,
+      sessionAccuracy: totalQuestions > 0 ? correctCount / totalQuestions : 0,
+      sessionQuestionCount: totalQuestions,
+      projectedScore: totalScore,
       level: newLevel,
-      badges: allBadges,
-      vaultUnlocked: totalScore >= 700 ? true : gam.vaultUnlocked,
-    },
-  });
+      sessionType: session.sessionType,
+    });
 
-  return NextResponse.json({
-    session,
-    xpAwarded: sessionXP,
-    newBadges,
-    gamification: updatedGam,
-  });
+    // Update gamification
+    const allBadges = [
+      ...(gam.badges as { id: string; name: string }[]),
+      ...newBadges.map((b: Badge) => ({ id: b.id, name: b.name, earnedAt: new Date().toISOString() })),
+    ];
+
+    const updatedGam = await prisma.gamification.update({
+      where: { userId },
+      data: {
+        xpTotal: newXPTotal,
+        level: newLevel,
+        badges: allBadges,
+        vaultUnlocked: totalScore >= 700 ? true : gam.vaultUnlocked,
+      },
+    });
+
+    return NextResponse.json({
+      session,
+      xpAwarded: sessionXP,
+      newBadges,
+      gamification: updatedGam,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Database error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

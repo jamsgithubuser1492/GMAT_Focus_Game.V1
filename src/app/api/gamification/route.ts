@@ -14,31 +14,36 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing query param: userId" }, { status: 400 });
   }
 
-  const gam = await prisma.gamification.findUnique({ where: { userId } });
-  if (!gam) {
-    return NextResponse.json({ error: "Gamification data not found" }, { status: 404 });
+  try {
+    const gam = await prisma.gamification.findUnique({ where: { userId } });
+    if (!gam) {
+      return NextResponse.json({ error: "Gamification data not found" }, { status: 404 });
+    }
+
+    const levelProgress = getXPForNextLevel(gam.xpTotal);
+
+    // Enrich badge data with full definitions
+    const earnedBadgeIds = (gam.badges as { id: string; earnedAt?: string }[]);
+    const badges = earnedBadgeIds.map((earned: { id: string; earnedAt?: string }) => {
+      const def = BADGE_DEFINITIONS.find((b) => b.id === earned.id);
+      return {
+        ...def,
+        earnedAt: earned.earnedAt,
+      };
+    });
+
+    return NextResponse.json({
+      xpTotal: gam.xpTotal,
+      level: gam.level,
+      levelProgress,
+      streakDays: gam.streakDays,
+      streakLastDate: gam.streakLastDate,
+      vaultUnlocked: gam.vaultUnlocked,
+      badges,
+      bookmarkXp: gam.bookmarkXp,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Database error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const levelProgress = getXPForNextLevel(gam.xpTotal);
-
-  // Enrich badge data with full definitions
-  const earnedBadgeIds = (gam.badges as { id: string; earnedAt?: string }[]);
-  const badges = earnedBadgeIds.map((earned: { id: string; earnedAt?: string }) => {
-    const def = BADGE_DEFINITIONS.find((b) => b.id === earned.id);
-    return {
-      ...def,
-      earnedAt: earned.earnedAt,
-    };
-  });
-
-  return NextResponse.json({
-    xpTotal: gam.xpTotal,
-    level: gam.level,
-    levelProgress,
-    streakDays: gam.streakDays,
-    streakLastDate: gam.streakLastDate,
-    vaultUnlocked: gam.vaultUnlocked,
-    badges,
-    bookmarkXp: gam.bookmarkXp,
-  });
 }
