@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   if (existingProfiles === 0) {
     const skillNodes = await prisma.skillNode.findMany({ select: { id: true } });
     await prisma.learnerProfile.createMany({
-      data: skillNodes.map((sn) => ({
+      data: skillNodes.map((sn: { id: string }) => ({
         userId: user.id,
         skillNodeId: sn.id,
       })),

@@ -59,13 +59,13 @@ export async function POST(request: NextRequest) {
   };
 
   for (const section of GMAT_FOCUS.SECTIONS) {
-    const sectionAttempts = attempts.filter((a) => a.section === section);
+    const sectionAttempts = attempts.filter((a: AttemptRecord) => a.section === section);
     sectionAttemptCounts[section] = sectionAttempts.length;
 
     if (sectionAttempts.length > 0) {
       sectionThetas[section] = updateTheta(
         0.0,
-        sectionAttempts.map((a) => ({ isCorrect: a.isCorrect, item: a.item })),
+        sectionAttempts.map((a: AttemptRecord) => ({ isCorrect: a.isCorrect, item: a.item })),
       );
     }
   }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
   const percentile = scoreToPercentile(scoreResult.totalScore);
 
   // Build section progress
-  const sectionProgress = GMAT_FOCUS.SECTIONS.map((section) => {
+  const sectionProgress = GMAT_FOCUS.SECTIONS.map((section: GmatSection) => {
     const total = GMAT_FOCUS.QUESTIONS_PER_SECTION[section];
     const answered = sectionAttemptCounts[section]!;
     return {

@@ -22,6 +22,7 @@ import {
   calculateSessionXP,
   getLevel,
   checkNewBadges,
+  type Badge,
 } from "@/lib/gamification";
 
 interface CompleteSessionBody {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
   const newLevel = getLevel(newXPTotal);
 
   // Check for new badges
-  const existingBadgeIds = (gam.badges as { id: string }[]).map((b) => b.id);
+  const existingBadgeIds = (gam.badges as { id: string }[]).map((b: { id: string }) => b.id);
   const newBadges = checkNewBadges(existingBadgeIds, {
     sessionsCompleted: completedSessions,
     streakDays: gam.streakDays,
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
   // Update gamification
   const allBadges = [
     ...(gam.badges as { id: string; name: string }[]),
-    ...newBadges.map((b) => ({ id: b.id, name: b.name, earnedAt: new Date().toISOString() })),
+    ...newBadges.map((b: Badge) => ({ id: b.id, name: b.name, earnedAt: new Date().toISOString() })),
   ];
 
   const updatedGam = await prisma.gamification.update({
