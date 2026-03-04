@@ -28,54 +28,59 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing query param: userId" }, { status: 400 });
   }
 
-  // Build query filter
-  const where: { userId: string; skillNode?: { section: GmatSection } } = { userId };
-  if (section) {
-    where.skillNode = { section };
-  }
-
-  const profiles = await prisma.learnerProfile.findMany({
-    where,
-    include: {
-      skillNode: {
-        select: { id: true, section: true, name: true, tier: true },
-      },
-    },
-  });
-
-  if (profiles.length === 0) {
-    // Check if user exists at all
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+  try {
+    // Build query filter
+    const where: { userId: string; skillNode?: { section: GmatSection } } = { userId };
+    if (section) {
+      where.skillNode = { section };
     }
+
+    const profiles = await prisma.learnerProfile.findMany({
+      where,
+      include: {
+        skillNode: {
+          select: { id: true, section: true, name: true, tier: true },
+        },
+      },
+    });
+
+    if (profiles.length === 0) {
+      // Check if user exists at all
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+    }
+
+    // Compute fresh decay factors server-side
+    const now = new Date();
+    const profileMap: Record<string, {
+      userId: string;
+      skillNodeId: string;
+      theta: number;
+      attempts: number;
+      correct: number;
+      lastPracticed: string | null;
+      decayFactor: number;
+    }> = {};
+
+    for (const p of profiles) {
+      const freshDecay = calculateDecayFactor(p.lastPracticed, now);
+
+      profileMap[p.skillNodeId] = {
+        userId: p.userId,
+        skillNodeId: p.skillNodeId,
+        theta: p.theta,
+        attempts: p.attempts,
+        correct: p.correct,
+        lastPracticed: p.lastPracticed?.toISOString() ?? null,
+        decayFactor: freshDecay,
+      };
+    }
+
+    return NextResponse.json({ profiles: profileMap });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Database error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  // Compute fresh decay factors server-side
-  const now = new Date();
-  const profileMap: Record<string, {
-    userId: string;
-    skillNodeId: string;
-    theta: number;
-    attempts: number;
-    correct: number;
-    lastPracticed: string | null;
-    decayFactor: number;
-  }> = {};
-
-  for (const p of profiles) {
-    const freshDecay = calculateDecayFactor(p.lastPracticed, now);
-
-    profileMap[p.skillNodeId] = {
-      userId: p.userId,
-      skillNodeId: p.skillNodeId,
-      theta: p.theta,
-      attempts: p.attempts,
-      correct: p.correct,
-      lastPracticed: p.lastPracticed?.toISOString() ?? null,
-      decayFactor: freshDecay,
-    };
-  }
-
-  return NextResponse.json({ profiles: profileMap });
 }

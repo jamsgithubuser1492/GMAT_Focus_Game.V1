@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useExamSessionStore } from "@/stores/exam-session-store";
 import type { GmatSection } from "@/lib/tutor-engine/types";
+import { GMAT_FOCUS } from "@/lib/tutor-engine/types";
+import type { SectionConfig } from "@/stores/exam-session-store";
 
 type SessionMode = "drill" | "section_practice" | "full_exam";
 
@@ -42,6 +44,34 @@ const SECTION_OPTIONS: { value: GmatSection; label: string }[] = [
   { value: "data_insights", label: "Data Insights" },
 ];
 
+// ---------------------------------------------------------------------------
+// Build section configs locally (no API needed)
+// ---------------------------------------------------------------------------
+function buildLocalSections(
+  mode: SessionMode,
+  section: GmatSection,
+): SectionConfig[] {
+  if (mode === "full_exam") {
+    return GMAT_FOCUS.SECTIONS.map((sec: GmatSection) => ({
+      section: sec,
+      questionsCount: GMAT_FOCUS.QUESTIONS_PER_SECTION[sec],
+      timeMinutes: GMAT_FOCUS.TIME_PER_SECTION_MINUTES,
+      editsAllowed: GMAT_FOCUS.MAX_EDITS_PER_SECTION,
+      startingTheta: 0.0,
+    }));
+  }
+
+  return [
+    {
+      section,
+      questionsCount: mode === "drill" ? 10 : GMAT_FOCUS.QUESTIONS_PER_SECTION[section],
+      timeMinutes: mode === "drill" ? 15 : GMAT_FOCUS.TIME_PER_SECTION_MINUTES,
+      editsAllowed: GMAT_FOCUS.MAX_EDITS_PER_SECTION,
+      startingTheta: 0.0,
+    },
+  ];
+}
+
 interface SessionLauncherProps {
   onBack?: () => void;
 }
@@ -57,12 +87,55 @@ export default function SessionLauncher({ onBack }: SessionLauncherProps) {
 
   const needsSection = selectedMode !== "full_exam";
 
+  // ---------------------------------------------------------------------------
+  // Start session: try DB-backed, fall back to local-only
+  // ---------------------------------------------------------------------------
   const handleStart = async () => {
     setIsStarting(true);
     setError(null);
 
     try {
-      // Ensure user exists in the database
+      // 1. Check if the database is available
+      let dbAvailable = false;
+      try {
+        const healthRes = await fetch("/api/health");
+        if (healthRes.ok) {
+          const health = await healthRes.json();
+          dbAvailable = health.db === true;
+        }
+      } catch {
+        // Network error — DB unavailable
+      }
+
+      // 2. If DB is available, try the full server flow
+      if (dbAvailable) {
+        const result = await tryServerSession();
+        if (result) {
+          startSession(result.sessionId, result.userId, result.sessionType, result.sectionsConfig);
+          return;
+        }
+      }
+
+      // 3. Fall back to local-only mode (no DB needed)
+      startLocalSession();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Server session: create user + exam session via API
+  // ---------------------------------------------------------------------------
+  const tryServerSession = async (): Promise<{
+    sessionId: string;
+    userId: string;
+    sessionType: SessionMode;
+    sectionsConfig: SectionConfig[];
+  } | null> => {
+    try {
+      // Ensure user exists
       let userId = localStorage.getItem("gmat_user_id");
       if (!userId) {
         const userRes = await fetch("/api/user", {
@@ -78,11 +151,11 @@ export default function SessionLauncher({ onBack }: SessionLauncherProps) {
           userId = userData.id;
           localStorage.setItem("gmat_user_id", userId!);
         } else {
-          // Fallback to local-only mode if DB is unavailable
-          userId = "local-player";
+          return null; // DB user creation failed — caller falls back to local
         }
       }
 
+      // Create exam session
       const res = await fetch("/api/exam-session/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -93,30 +166,29 @@ export default function SessionLauncher({ onBack }: SessionLauncherProps) {
         }),
       });
 
-      if (!res.ok) {
-        let errorMessage = "Failed to create session";
-        try {
-          const data = await res.json();
-          errorMessage = data.error ?? errorMessage;
-        } catch {
-          // Response body isn't valid JSON (e.g. 500 with empty body)
-        }
-        throw new Error(errorMessage);
-      }
+      if (!res.ok) return null;
 
       const data = await res.json();
-
-      startSession(
-        data.sessionId,
-        data.userId,
-        data.sessionType,
-        data.sectionsConfig,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setIsStarting(false);
+      return {
+        sessionId: data.sessionId,
+        userId: data.userId,
+        sessionType: data.sessionType,
+        sectionsConfig: data.sectionsConfig,
+      };
+    } catch {
+      return null; // Any network error — caller falls back to local
     }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Local session: no API calls, works entirely offline
+  // ---------------------------------------------------------------------------
+  const startLocalSession = () => {
+    const sessionId = crypto.randomUUID();
+    const userId = localStorage.getItem("gmat_user_id") ?? "local-player";
+    const sections = buildLocalSections(selectedMode, selectedSection);
+
+    startSession(sessionId, userId, selectedMode, sections);
   };
 
   return (
